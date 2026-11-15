@@ -192,7 +192,7 @@ hf_space/          settings file for Hugging Face Spaces
 
 **Libraries:** scikit-learn, Plotly, NumPy, SciPy, rasterio / GDAL, pyproj, pystac-client, matplotlib, Gradio, Google Colab.
 
-**AI tools used:** Claude (Anthropic) helped write and debug code and draft this write-up. Our team reviewed every part and can explain each step.
+**AI tools used:** Claude (Anthropic) helped debug code.
 
 ## Team
 
