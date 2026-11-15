@@ -96,7 +96,7 @@ Full tables, error maps and charts: **[results/RESULTS.md](results/RESULTS.md)**
 **Honest notes:**
 - On unseen Himalayan lakes our model catches more of the real water than ESA's layer (recall 92% vs 80%), but it raises many more false alarms on snow and ice (precision 66% vs 91%).
 - Persistence beat both trend forecasts. Lake areas jump from year to year (ice, sediment, partial drainage), so "same as last year" is a strong baseline.
-- In a follow-up check using only the training lakes, a more regularized model with speck removal scored better. A version using only brightness ratios generalized best, but we only found that by looking at the test lakes, so we didn't switch to it. See [experiments/MODEL_SELECTION.md](experiments/MODEL_SELECTION.md).
+- After the final run, a check using only the training lakes found that a more regularized model with speck removal scores better (not in the official numbers, since we ran out of time to rerun). A version using only brightness ratios generalized best, but we only found that by looking at the test lakes, so we didn't switch to it. See [experiments/MODEL_SELECTION.md](experiments/MODEL_SELECTION.md).
 
 ## 4. Where does it fail?
 
