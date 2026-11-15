@@ -2,7 +2,7 @@
 
 **Veritas AI International High School Hackathon 2026, AI + Climate track**
 
-An AI tool that finds glacial lakes in free satellite images, measures how big each one is every year, and ranks which lakes are growing fastest. A regional hazard team can use the ranking to decide which lakes to check first.
+An AI tool that finds glacial lakes in free satellite images, measures a dozen things about each lake every year, and builds a report card for several uses: outburst flood risk, drought and water supply, lakes that already drained, glacier retreat, and water quality. A regional hazard team can use the ranking to decide which lakes to check first.
 
 > This project is a student prototype. It is not an official flood warning or hazard assessment.
 
@@ -24,13 +24,22 @@ There are thousands of these lakes, and many are in places nobody can visit ofte
 
 **In:** the latitude and longitude of a lake, a season, and a year. The tool downloads a 4 km by 4 km Sentinel-2 satellite image for that spot by itself.
 
-**Out:**
-- a water map (which 10 m pixels are lake water)
-- the lake's area in hectares for every year from 2017 to 2025
-- a next-year area forecast
-- a watch list ranked by growth in hectares per year, with a flag if the lake suddenly shrank (a sign it may already have burst)
+**Out, for every lake and every year from 2017 to 2025:**
+- a water map (which 10 m pixels are lake water), made by the AI model
+- size and shape: area, perimeter, length, elongation, shoreline complexity
+- water: colour and muddiness (glacier-fed lakes are milky), percent of the lake covered by ice
+- surroundings: glacier and snow ice in the 4 km box, distance from the lake to the nearest ice (a lake touching a glacier can be hit by falling ice)
+- terrain: lake elevation and how far the valley drops below it
+- flood potential: estimated water volume and a worst-case outburst peak flow, from published formulas (Huggel et al. 2002)
 
-The demo app (`app.py`) also has a "Check any lake on Earth" tab. You type any coordinates and it measures the change live.
+**Then, per lake, a report card:**
+- **Outburst flood screening:** a 0 to 100 score from volume, growth, valley drop and glacier contact, with High, Medium and Low tiers
+- **Drought and water supply:** shrinking lakes, change in stored water, and dry years well below the lake's own trend
+- **Already drained:** sudden drops that may mean an outburst happened (South Lhonak, 2023)
+- **Glacier retreat:** trend in ice area around the lake
+- **Next-year area forecast** compared with persistence
+
+**Web app:** `app.py` is a web app with five tabs. **Watch list** has a world map coloured by flood score and the full report card. **Compare lakes** charts any measurement over the years for several lakes at once. **Explore a lake** lets you slide through the years and watch the lake outline grow. **Check any lake on Earth** lets you type any coordinates and measures the change live from free satellite data, so users never have to upload images. **How it works** explains the method. It runs locally with `python app.py` and opens at http://127.0.0.1:7860.
 
 ## How it works
 
@@ -38,8 +47,9 @@ The demo app (`app.py`) also has a "Check any lake on Earth" tab. You type any c
 2. **Answer key.** ESA WorldCover 2021 is a global 10 m land cover map. Its "water" class is our label for training and testing.
 3. **Inputs to the model.** The 6 bands, plus 3 indexes (NDWI, MNDWI, NDVI), brightness, and a cliff flag (slope over 25 degrees, from the Copernicus elevation map).
 4. **Model.** A gradient boosted tree classifier (scikit-learn `HistGradientBoostingClassifier`). It decides for each pixel whether it's water.
-5. **Lake area.** We keep the water patch closest to the lake's centre and count its pixels. One pixel is 0.01 hectares.
-6. **Forecast and watch list.** We fit each lake's yearly areas and rank lakes by how fast they're growing.
+5. **Lake outline.** We keep the water patch closest to the lake's centre. One pixel is 0.01 hectares.
+6. **Measurements** (`glw/measure.py`). Shape comes from the outline. Water colour is the average reflectance inside the lake. Ice uses the standard snow index (NDSI over 0.4). Distance to ice uses a distance transform. Elevation and valley drop come from the Copernicus elevation map. Volume uses V = 0.104 x A^1.42 and peak flow uses Q = 0.00077 x V^1.017 (Huggel et al. 2002).
+7. **Report card** (`glw/assess.py`). Trends are straight-line fits over clear years. The flood score is a simple weighted rank so anyone can check how it was made.
 
 ## 3. Does it beat a simple baseline?
 
@@ -94,6 +104,7 @@ The brief has a land-use classification project (EuroSAT). We changed it in all 
 
 - **Our own user and setting:** a hazard team ranking dangerous glacial lakes, in the Himalaya and Andes, instead of general land use in Europe.
 - **Our own data:** live Sentinel-2 chips, ESA WorldCover labels, and Copernicus DEM slope for 12 named lakes over 9 years. We don't use EuroSAT at all.
+- **Our own uses:** one AI water map feeds five different decisions (flood screening, water supply, drained-lake check, glacier retreat, water quality).
 - **Our own questions:**
   - Does a model trained only on Himalayan lakes still work on a different continent (the Andes)?
   - Where does it fail (shadow, ice, steep slopes)?
@@ -108,7 +119,8 @@ The easiest way is to open `notebooks/Glacier_Lake_Watch.ipynb` in Google Colab 
 ```bash
 pip install -r requirements.txt
 python run_all.py            # real data, about 20-40 min the first time, cached after that
-python app.py --share        # demo with a public link
+python app.py --share        # web app with a temporary public link
+# permanent free hosting on Hugging Face Spaces: see DEPLOY.md
 python run_all.py --synthetic   # fake data, only to check the code works offline
 ```
 
@@ -116,11 +128,15 @@ python run_all.py --synthetic   # fake data, only to check the code works offlin
 glw/zones.py       the 12 lakes, train/test split, seasons
 glw/data.py        downloads Sentinel-2, WorldCover and DEM chips from public cloud storage
 glw/model.py       features, model, baselines, scoring, lake outline
+glw/measure.py     shape, water colour, ice, glacier distance, terrain, volume, peak flow
+glw/assess.py      report card: flood score, drought / water supply, drained lakes, glacier retreat
 glw/timeseries.py  forecast backtest and watch list
 glw/viz.py         figures
 glw/report.py      writes results/RESULTS.md
 run_all.py         the whole pipeline
-app.py             Gradio demo
+app.py             the web app (Gradio + Plotly)
+DEPLOY.md          how to host the web app for free
+hf_space/          settings file for Hugging Face Spaces
 ```
 
 ## Limitations
@@ -128,6 +144,9 @@ app.py             Gradio demo
 - WorldCover is from 2021. We train and test on 2021 images (or the closest year) so the labels match the image.
 - Lake area is not lake volume, and growth is not the only thing that makes a lake dangerous. The type of dam, steep ice above the lake, and how many people live downstream all matter. A real hazard team would combine our ranking with those.
 - Forecast "truth" is our own model's measurement of later years, not a field survey.
+- Volume and peak flow come from rule-of-thumb formulas fitted on other lakes. They can be off by 2x or more, so we use them to compare lakes, not as exact values.
+- Ice area mixes glaciers with leftover seasonal snow. We pick late-season images to reduce this, but single years can jump.
+- Some lakes are drained on purpose by people (Paron for hydropower, Palcacocha for flood safety), so not every change is climate.
 - Cloudy years are skipped (we need at least 90% clear sky over the lake), so some lakes have gaps.
 - Lake coordinates are approximate centres. Each 4 km box is wide enough to contain the lake.
 
@@ -140,10 +159,12 @@ app.py             Gradio demo
 - Lake locations and flood history from public sources about each lake (e.g. reporting on the October 2023 South Lhonak outburst).
 
 **Methods**
+- Huggel, C., Kääb, A., Haeberli, W., Teysseire, P., & Paul, F. (2002). Remote sensing based assessment of hazards from glacier lake outbursts: a case study in the Swiss Alps. *Canadian Geotechnical Journal*, 39(2), 316-330. (Volume and peak flow formulas.)
+- Dozier, J. (1989). Spectral signature of alpine snow cover from the Landsat Thematic Mapper. *Remote Sensing of Environment.* (NDSI snow and ice index.)
 - McFeeters, S. K. (1996). The use of the Normalized Difference Water Index (NDWI). *International Journal of Remote Sensing.*
 - Xu, H. (2006). Modification of NDWI (MNDWI). *International Journal of Remote Sensing.*
 
-**Libraries:** scikit-learn, NumPy, SciPy, rasterio / GDAL, pyproj, pystac-client, matplotlib, Gradio, Google Colab.
+**Libraries:** scikit-learn, Plotly, NumPy, SciPy, rasterio / GDAL, pyproj, pystac-client, matplotlib, Gradio, Google Colab.
 
 **AI tools used:** Claude (Anthropic) helped write and debug code and draft this write-up. Our team reviewed every part and can explain each step.
 

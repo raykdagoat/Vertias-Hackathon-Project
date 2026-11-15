@@ -9,7 +9,9 @@ Steps
   3. Score it against 3 baselines on lakes it never saw (Himalaya and Andes)
   4. Break errors down by terrain (shadow, snow/ice, steep slopes) to find where it fails
   5. Measure each lake's area every year, then backtest a forecast vs persistence
-  6. Rank lakes into a watch list and write results/RESULTS.md with all figures
+  6. Measure shape, water colour, ice, glacier distance, terrain, volume and flood potential
+  7. Build a report card per lake (flood hazard, drought/water supply, drained lakes,
+     glacier retreat, water quality) and write results/RESULTS.md with all figures
 """
 import argparse
 import csv
@@ -24,6 +26,8 @@ from scipy import ndimage
 from glw import model as M
 from glw import timeseries as T
 from glw import viz
+from glw.assess import report_card
+from glw.measure import measure
 from glw.zones import LABEL_YEAR, ZONE_BY_ID, ZONES
 
 
@@ -185,26 +189,33 @@ def main():
             importance = {n: float(v) for n, v in sorted(zip(M.FEATURE_NAMES, pi.importances_mean), key=lambda t: -t[1])}
 
     # ---------------------------------------------------------- 5. yearly areas
-    series, series_rows = {}, []
+    series, series_rows, measurements = {}, [], {}
     for z in ZONES:
         wc_water = static[z["id"]]["worldcover"] == M.WC_WATER
         region = ndimage.binary_dilation(wc_water, iterations=25) if wc_water.any() else np.ones_like(wc_water)
-        pts = []
+        lake_region = ndimage.binary_dilation(wc_water, iterations=3) if wc_water.any() else None
+        pts, mrows = [], []
         for y in years:
             chip = chips.get((z["id"], y))
             if chip is None:
                 series_rows.append(dict(zone=z["id"], year=y, area_ha="", reliable=False, note="no image")); continue
             F = M.make_features(chip["bands"], static[z["id"]]["slope"])
             valid = M.valid_mask(chip)
-            lake = M.main_lake(M.predict_mask(clf, F, valid))
+            water = M.predict_mask(clf, F, valid)
+            lake = M.main_lake(water)
             area = float(lake.sum() * M.PIXEL_HA)
             clear_over_lake = float(valid[region].mean())
             reliable = clear_over_lake >= 0.9 and area > 0
             series_rows.append(dict(zone=z["id"], year=y, area_ha=round(area, 2), reliable=reliable,
                                     note=f"{chip['date']} clear over lake {clear_over_lake:.0%}"))
+            m = measure(chip, static[z["id"]], lake, water, valid, lake_region)
+            mrows.append(dict(zone=z["id"], name=z["name"], year=y, date=chip["date"], reliable=reliable,
+                              clear_pct=round(100 * clear_over_lake, 1), **m))
             if reliable:
                 pts.append((y, area))
         series[z["id"]] = pts
+        measurements[z["id"]] = mrows
+    cards = report_card(measurements, ZONE_BY_ID)
     names = {z["id"]: z["name"] for z in ZONES}
     viz.save_timeseries_figure(os.path.join(figs, "lake_areas.png"), series, names)
 
@@ -227,7 +238,8 @@ def main():
 
     # ---------------------------------------------------------- 6. save
     report.update(group_scores=group_scores, condition_scores=cond_scores, per_zone=per_zone,
-                  importance=importance, forecast=forecast, watch_list=wl, label_years=label_years)
+                  importance=importance, forecast=forecast, watch_list=wl, label_years=label_years,
+                  report_card=cards)
     with open(os.path.join(out, "metrics.json"), "w") as f:
         json.dump(report, f, indent=2, default=float)
     with open(os.path.join(out, "lake_areas.csv"), "w", newline="") as f:
@@ -235,6 +247,14 @@ def main():
     if wl:
         with open(os.path.join(out, "watch_list.csv"), "w", newline="") as f:
             w = csv.DictWriter(f, fieldnames=list(wl[0].keys())); w.writeheader(); w.writerows(wl)
+    allm = [r for rows in measurements.values() for r in rows]
+    if allm:
+        with open(os.path.join(out, "lake_measurements.csv"), "w", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=list(allm[0].keys())); w.writeheader(); w.writerows(allm)
+    if cards:
+        with open(os.path.join(out, "report_card.csv"), "w", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=list(cards[0].keys())); w.writeheader(); w.writerows(cards)
+    viz.save_multi_metric(os.path.join(figs, "lake_indicators.png"), measurements, names)
     from glw.report import write_results_md
     write_results_md(out, report, methods)
     print(f"\nDone. Open {out}/RESULTS.md")
