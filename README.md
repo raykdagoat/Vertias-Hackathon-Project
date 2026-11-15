@@ -1,6 +1,7 @@
 # Glacier Lake Watch
 
-**Veritas AI International High School Hackathon 2026, AI + Climate track**
+**Track:** Climate (Veritas AI International High School Hackathon 2026)  
+**Team:** _your name(s)_
 
 An AI tool that finds glacial lakes in free satellite images, measures a dozen things about each lake every year, and builds a report card for several uses: outburst flood risk, drought and water supply, lakes that already drained, glacier retreat, and water quality. A regional hazard team can use the ranking to decide which lakes to check first.
 
@@ -39,7 +40,7 @@ There are thousands of these lakes, and many are in places nobody can visit ofte
 - **Glacier retreat:** trend in ice area around the lake
 - **Next-year area forecast** compared with persistence
 
-**Web app:** `app.py` is a web app with five tabs. **Watch list** has a world map coloured by flood score and the full report card. **Compare lakes** charts any measurement over the years for several lakes at once. **Explore a lake** lets you slide through the years and watch the lake outline grow. **Check any lake on Earth** lets you type any coordinates and measures the change live from free satellite data, so users never have to upload images. **How it works** explains the method. It runs locally with `python app.py` and opens at http://127.0.0.1:7860.
+**Web app:** `app.py` is a web app with five tabs. **Watch list** has a world map coloured by flood score and the full report card. **Compare lakes** charts any measurement over the years for several lakes at once. **Explore a lake** lets you slide through the years and watch the lake outline grow. **Check any lake on Earth** lets you type any coordinates and measures the change live from free satellite data, so users never have to upload images. **How it works** explains the method. It runs locally with `python app.py` (after `run_all.py`) and opens at http://127.0.0.1:7860.
 
 ## How it works
 
@@ -72,31 +73,56 @@ For the forecast, we use the persistence baseline from the brief: "next year's l
 
 The lakes are tens to thousands of kilometres apart, so test pixels never leak into training.
 
-### Results
+### Results (real data, lakes the model never saw)
 
-All results are in **[results/RESULTS.md](results/RESULTS.md)**, written automatically by `run_all.py` from the real run. The headline numbers are copied here:
+Full tables, error maps and charts: **[results/RESULTS.md](results/RESULTS.md)**. Answer key: ESA WorldCover 2021 water class. Scores are per 10 m pixel.
 
-| | Our model | Best baseline |
+| Method | F1, unseen Himalayan lakes | F1, Andes (new continent) |
 |---|---|---|
-| F1, unseen Himalayan lakes | _fill in_ | _fill in (which one)_ |
-| F1, Andes | _fill in_ | _fill in_ |
-| Forecast error, persistence vs our best (ha) | _fill in_ | _fill in_ |
+| Always land (simplest guess) | 0.000 | 0.000 |
+| ESA's built-in water layer | 0.850 | 0.904 |
+| NDWI > 0.2 (classic rule, tuned on training lakes) | **0.855** | **0.941** |
+| Our model, image bands only | 0.808 | 0.935 |
+| Our model, bands + ESA flags (main model) | 0.766 | 0.926 |
 
-**Main takeaway:** _one sentence, filled in from the real results._
+| Forecast of next year's lake area (2023 to 2025) | Mean error |
+|---|---|
+| Persistence ("same as last year") | **17.9 ha** |
+| Linear trend | 19.3 ha |
+| Damped trend | 18.1 ha |
 
-We report the results we actually got, including the weak ones.
+**Main takeaway:** the AI model carries over to a new continent (F1 0.93 in Peru after training only in the Himalaya) and beats ESA's built-in water layer there, but it does **not** beat the simple NDWI rule. Its value is what it feeds: one water map per year turns into 15 measurements and a report card for flood risk, water supply, drained lakes and glacier retreat. And it caught the real South Lhonak outburst in 2023.
+
+**Honest notes:**
+- On unseen Himalayan lakes our model catches more of the real water than ESA's layer (recall 92% vs 80%), but it raises many more false alarms on snow and ice (precision 66% vs 91%).
+- Persistence beat both trend forecasts. Lake areas jump from year to year (ice, sediment, partial drainage), so "same as last year" is a strong baseline.
+- In a follow-up check using only the training lakes, a more regularized model with speck removal scored better. A version using only brightness ratios generalized best, but we only found that by looking at the test lakes, so we didn't switch to it. See [experiments/MODEL_SELECTION.md](experiments/MODEL_SELECTION.md).
 
 ## 4. Where does it fail?
 
-`RESULTS.md` splits errors by terrain (shadow, snow and ice, steep slopes) and shows an error map for every test lake (red = false alarm, yellow = missed water). It also names the worst lake.
+`RESULTS.md` splits errors by terrain and shows an error map for every test lake (red = false alarm, yellow = missed water).
 
-These are the failure cases we expected going in, and we checked each one against the results:
+- **Snow and ice are the biggest problem.** On unseen Himalayan lakes, most of our model's false water is on pixels labeled snow or ice (159 ha of false water there, vs 21 ha on normal ground). Wet, debris-covered glacier ice looks a lot like water.
+- **Worst lake: Gepang Gath** (F1 0.61). The lake itself is found well, but the model marks the rock-covered glacier tongue below the lake and thin meltwater streams as water. Wet, dark debris on ice looks like water to it. NDWI and ESA's layer don't make this mistake (see `results/figures/errors_gepang_gath.png`).
+- **Shadows:** ESA's water layer misses every lake pixel in mountain shadow (0% recall). Ours finds about 80% of them. NDWI does about as well.
+- **South Lhonak, 2023:** the model measured the lake at 158 ha in Oct 2022 and almost 0 ha on 26 Oct 2023, three weeks after the real outburst flood of 4 Oct 2023. The sudden-drop flag worked. But the lake did not fully empty, so the near-zero area is wrong: muddy, sediment-filled water right after the flood confused the model.
+- **False "sudden drops":** Imja Tsho shows a drop from 173 ha (2024) to 91 ha (2025). There was no flood there, so this is most likely ice or snow on the lake surface. A real system would confirm drops with a second image.
+- **Label errors:** WorldCover is itself made by a model, so some "errors" may be the answer key's fault.
 
-- **Mountain shadows.** Dark shadowed slopes look like water to simple rules. This is the classic NDWI false alarm.
-- **Frozen or ice-covered lakes.** Ice is bright, so a frozen lake doesn't look like water. This is more likely in the Andes dry season, which is winter there.
-- **Grey, muddy glacial water.** Water full of ground-up rock reflects more light, which lowers NDWI. Lakes in Peru are often this colour.
-- **Label errors.** WorldCover is itself a model and it's not perfect. Some "errors" may be the label's fault, not ours.
-- **Outburst floods break the forecast.** South Lhonak drained in October 2023. No trend line can predict a sudden collapse, so our forecast misses it. The watch list flags sudden drops for this reason.
+## What we fixed after the first real run
+
+Our first run on real data exposed bugs that synthetic test data never showed. We kept those results in [results_first_run/](results_first_run/) so you can compare.
+1. Some images came from the edge of a satellite pass and were blank. We now keep only images that fully cover the lake.
+2. Newer images (2022 onward) had a brightness offset subtracted twice, making water look negative. We now check each image's processing version.
+3. Our Gepang Gath box was about 2.5 km off. We moved it to the published location (32°31'N 77°13'E).
+4. Thin snow made 10 of 12 lakes "touch a glacier." Glaciers now must be connected ice bodies of 5 ha or more.
+5. November images had long shadows and fresh snow, so the Himalaya season is now September to October.
+
+## What we'd do next
+
+- Switch to brightness-ratio inputs and test them on a fresh set of lakes, since that version looked like it generalized best.
+- Add hand-checked lake outlines for a few lakes, so the answer key isn't another model.
+- Use two images per year and confirm any sudden drop before flagging it, to cut false alarms from ice.
 
 ## Make it your own: what we added
 
@@ -114,7 +140,7 @@ The brief has a land-use classification project (EuroSAT). We changed it in all 
 
 ## Run it yourself
 
-The easiest way is to open `notebooks/Glacier_Lake_Watch.ipynb` in Google Colab and click Runtime → Run all. You don't need a GPU.
+The easiest way is to open `notebooks/Glacier_Lake_Watch_RUN.ipynb` in Google Colab and click Runtime → Run all. It has all the code built in and saves results to your Google Drive. You don't need a GPU. A full run takes about 10 minutes.
 
 ```bash
 pip install -r requirements.txt

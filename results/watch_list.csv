@@ -1,0 +1,13 @@
+zone,name,country,downstream,first_year,first_area_ha,latest_year,latest_area_ha,growth_ha_per_year,growth_pct_per_year,forecast_next_ha,sudden_drop,rank
+lugge_tsho,Lugge Tsho,Bhutan,Punatsangchhu river (1994 flood),2017,118.0,2025,161.95000000000002,4.825833333333463,3.245275828831541,167.39125000000024,False,1
+longbasaba,Longbasaba,China (Tibet),Pumqu / Arun river,2017,150.91,2025,163.86,1.8341666666666576,1.151520013393412,166.15652777777808,False,2
+thulagi,Thulagi Lake,Nepal,Marsyangdi river valley,2018,93.26,2025,101.56,1.2717857142856106,1.2974922800847903,102.65089285714274,False,3
+gepang_gath,Gepang Gath,India (Himachal),"Chandra river, Sissu",2017,166.55,2025,83.52,1.1528333333331546,1.1397264788266483,95.217083333333,True,4
+raphstreng,Raphstreng Tsho,Bhutan,Punatsangchhu river,2018,136.03,2025,140.75,1.021309523809408,0.7426287881836435,141.43607142857127,False,5
+paron,Laguna Paron,Peru,Caraz town,2019,110.89,2025,114.35000000000001,0.7496428571428568,0.6597890183948798,115.48357142857145,False,6
+lower_barun,Lower Barun,Nepal,Arun river valley,2019,198.49,2025,175.22,0.6125000000001143,0.31155081457373307,187.13357142857194,False,7
+tsho_rolpa,Tsho Rolpa,Nepal,Rolwaling valley and Tamakoshi hydropower,2017,149.34,2025,166.6,0.46900000000009157,0.2937962428047987,164.2897222222224,False,8
+palcacocha,Laguna Palcacocha,Peru,Huaraz city (1941 flood),2017,48.27,2025,46.1,0.17616666666666192,0.37656754702640055,46.88152777777778,False,9
+laguna_513,Laguna 513,Peru,Carhuaz (2010 flood),2017,20.0,2025,19.8,-0.0048333333333320655,-0.024323417579953356,19.82347222222222,False,10
+imja_tsho,Imja Tsho,Nepal,Dingboche and Khumbu valley villages,2018,127.06,2025,90.56,-0.8392857142857377,-0.5745777464816443,116.42660714285708,True,11
+south_lhonak,South Lhonak Lake,India (Sikkim),Teesta river (burst in Oct 2023),2018,142.15,2025,144.98,-4.742738095237413,-3.6715248315672673,126.40696428571594,True,12
