@@ -7,10 +7,10 @@ elevation map we measure:
   water             colour / muddiness (turbidity), ice cover on the lake
   surroundings      glacier ice area in the box, distance from lake to the glacier
   terrain           lake elevation, how far the valley drops below the lake
-  flood potential   estimated water volume and worst-case outburst peak flow
+  flood potential   estimated water volume, typical and worst-case outburst peak flow
 
-Volume and peak flow use published rule-of-thumb formulas for glacial lakes
-(Huggel et al. 2002). They are rough estimates, often off by 2x or more, and are
+Volume uses Huggel et al. (2002). Peak flow uses Clague and Mathews (1973) for a
+typical flood and Huggel et al. (2002) for a worst case. They are rough estimates, often off by 2x or more, and are
 used for ranking lakes against each other, not as exact numbers.
 """
 import numpy as np
@@ -34,6 +34,12 @@ def lake_volume_m3(area_m2):
 def peak_flow_m3s(volume_m3):
     """Huggel et al. (2002), moraine-dam breach worst case: Qmax = 0.00077 * V^1.017."""
     return 0.00077 * volume_m3 ** 1.017 if volume_m3 > 0 else 0.0
+
+
+def typical_peak_flow_m3s(volume_m3):
+    """Clague and Mathews (1973), fitted on real outburst floods: Qmax = 75 * (V / 10^6)^0.67.
+    Much lower than the worst case; real floods usually fall between the two."""
+    return 75 * (volume_m3 / 1e6) ** 0.67 if volume_m3 > 0 else 0.0
 
 
 def shape(lake):
@@ -68,19 +74,28 @@ def measure(chip, static, lake, water, valid, lake_region=None):
     else:
         out.update(water_red=np.nan, water_green=np.nan, water_blue=np.nan, turbidity="unknown")
 
-    # ice: on the lake (frozen surface) and glaciers in the 4 km box
+    # ice: on the lake (frozen surface) and glaciers in the box
     ice = ice_mask(bands, water, valid)
     if lake_region is None:
         lake_region = ndimage.binary_dilation(lake, iterations=3)
     region_ok = lake_region & valid
     out["ice_on_lake_pct"] = float(100 * (ice & region_ok).sum() / max(region_ok.sum(), 1))
-    out["ice_area_ha"] = float(ice.sum() * RES * RES / 1e4)
-    if lake.any() and ice.any():
-        dist = ndimage.distance_transform_edt(~ice) * RES
+    # glacier = a big connected ice body (at least 5 ha) that is not frozen lake surface.
+    # Our first real run counted thin snow and lake-edge ice, so 10 of 12 lakes "touched" a glacier.
+    near_lake = ndimage.binary_dilation(lake_region | lake, iterations=2)
+    lab, n = ndimage.label(ice & ~near_lake)
+    glacier = np.zeros_like(ice)
+    if n:
+        sizes = ndimage.sum(np.ones_like(lab), lab, range(1, n + 1))
+        big = [i + 1 for i, sz in enumerate(sizes) if sz >= 500]
+        glacier = np.isin(lab, big)
+    out["ice_area_ha"] = float(glacier.sum() * RES * RES / 1e4)
+    if lake.any() and glacier.any():
+        dist = ndimage.distance_transform_edt(~glacier) * RES
         out["lake_to_ice_m"] = float(dist[lake].min())
     else:
         out["lake_to_ice_m"] = np.nan
-    out["glacier_contact"] = bool(out["lake_to_ice_m"] <= 50) if np.isfinite(out["lake_to_ice_m"]) else False
+    out["glacier_contact"] = bool(out["lake_to_ice_m"] <= 60) if np.isfinite(out["lake_to_ice_m"]) else False
 
     # terrain from the elevation map
     dem = static.get("dem")
@@ -96,4 +111,5 @@ def measure(chip, static, lake, water, valid, lake_region=None):
     vol = lake_volume_m3(area_m2)
     out["volume_million_m3"] = vol / 1e6
     out["peak_flow_m3s"] = peak_flow_m3s(vol)
+    out["peak_flow_typical_m3s"] = typical_peak_flow_m3s(vol)
     return out

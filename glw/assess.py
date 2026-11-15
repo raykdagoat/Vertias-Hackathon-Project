@@ -54,7 +54,7 @@ def report_card(measurements, zones_by_id):
             growth_ha_per_year=growth, growth_pct_per_year=100 * growth / max(med, 1e-6),
             volume_million_m3=latest["volume_million_m3"],
             volume_change_million_m3=latest["volume_million_m3"] - first["volume_million_m3"],
-            peak_flow_m3s=latest["peak_flow_m3s"],
+            peak_flow_m3s=latest["peak_flow_m3s"], peak_flow_typical_m3s=latest["peak_flow_typical_m3s"],
             length_m=latest["length_m"], elongation=latest["elongation"],
             lake_elev_m=latest["lake_elev_m"], valley_drop_m=latest["valley_drop_m"],
             lake_to_ice_m=latest["lake_to_ice_m"], glacier_contact=latest["glacier_contact"],

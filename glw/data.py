@@ -79,28 +79,48 @@ def _read_tiles_merged(urls, grid, resampling):
 
 
 # ---------------------------------------------------------------- Sentinel-2
-def _scale_offset(asset):
-    rb = (asset.extra_fields.get("raster:bands") or [{}])[0]
-    return float(rb.get("scale", 1e-4)), float(rb.get("offset", 0.0))
+def _scale_offset(item):
+    """Sentinel-2 processing baseline 04.00+ (from 2022) stores reflectance with +1000 added.
+    Earth Search sometimes already removed it (earthsearch:boa_offset_applied). Our first real run
+    subtracted it twice, which made lake water look negative, so we decide from the item itself."""
+    props = item.properties
+    try:
+        baseline = float(props.get("s2:processing_baseline", "0"))
+    except ValueError:
+        baseline = 0.0
+    applied = bool(props.get("earthsearch:boa_offset_applied", False))
+    return 1e-4, (-0.1 if (baseline >= 4.0 and not applied) else 0.0)
 
 
-def search_scenes(lat, lon, year, months, max_cloud=50):
+def search_scenes(lat, lon, year, months, max_cloud=50, size_m=CHIP_SIZE_M):
     from pystac_client import Client
 
     last_day = calendar.monthrange(year, months[-1])[1]
     dt = f"{year}-{months[0]:02d}-01/{year}-{months[-1]:02d}-{last_day}"
     client = Client.open(STAC_URL)
-    search = client.search(collections=["sentinel-2-l2a"], bbox=bbox_lonlat(lat, lon), datetime=dt,
+    bb = bbox_lonlat(lat, lon, size_m)
+    search = client.search(collections=["sentinel-2-l2a"], bbox=bb, datetime=dt,
                            query={"eo:cloud_cover": {"lt": max_cloud}}, max_items=60)
     items = list(search.items())
+    # keep only images whose footprint covers our whole box (edge-of-swath images are blank)
+    try:
+        from shapely.geometry import box, shape
+        b = box(*bbox_lonlat(lat, lon, size_m, pad=1.0))
+        full = [it for it in items if shape(it.geometry).contains(b)]
+        items = full or items
+    except ImportError:
+        pass
     items.sort(key=lambda it: it.properties.get("eo:cloud_cover", 100))
     return items
 
 
-def fetch_s2_chip(zone, year, n_candidates=4):
+def fetch_s2_chip(zone, year, n_candidates=6):
     """Best (least cloudy over our chip) Sentinel-2 image for one zone and year."""
-    grid = chip_grid(zone["lat"], zone["lon"])
-    items = search_scenes(zone["lat"], zone["lon"], year, zone["months"])
+    size = zone.get("size_m", CHIP_SIZE_M)
+    grid = chip_grid(zone["lat"], zone["lon"], size)
+    items = search_scenes(zone["lat"], zone["lon"], year, zone["months"], size_m=size)
+    if not items and zone.get("fallback_months"):
+        items = search_scenes(zone["lat"], zone["lon"], year, zone["fallback_months"], size_m=size)
     if not items:
         return None
     best = None
@@ -121,12 +141,15 @@ def fetch_s2_chip(zone, year, n_candidates=4):
     bands = []
     for a in S2_ASSETS:
         dn = read_to_grid(it.assets[a].href, grid, "bilinear")
-        scale, offset = _scale_offset(it.assets[a])
-        refl = dn * scale + offset
+        scale, offset = _scale_offset(it)
+        refl = np.clip(dn * scale + offset, 0, None)
         refl[dn == 0] = np.nan
         bands.append(refl)
+    if clear < 0.05:
+        return None  # nothing usable in this season
     return dict(bands=np.stack(bands).astype("float32"), scl=scl.astype("uint8"),
-                date=it.properties["datetime"][:10], item_id=it.id, clear_frac=clear)
+                date=it.properties["datetime"][:10], item_id=it.id, clear_frac=clear,
+                offset=offset)
 
 
 # ---------------------------------------------------------------- labels + DEM
@@ -157,7 +180,7 @@ def dem_urls(lat, lon):
 
 def fetch_static(zone):
     """WorldCover classes and slope (degrees) for a zone. These don't change by year."""
-    grid = chip_grid(zone["lat"], zone["lon"])
+    grid = chip_grid(zone["lat"], zone["lon"], zone.get("size_m", CHIP_SIZE_M))
     wc = _read_tiles_merged(worldcover_urls(zone["lat"], zone["lon"]), grid, "nearest")
     dem = _read_tiles_merged(dem_urls(zone["lat"], zone["lon"]), grid, "bilinear")
     if dem is None:

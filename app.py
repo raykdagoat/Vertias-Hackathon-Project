@@ -65,7 +65,7 @@ def series(zid):
 
 
 def run_model(chip, static):
-    F = M.make_features(chip["bands"], static["slope"])
+    F = M.make_features(chip["bands"], static["slope"], chip["scl"])
     valid = M.valid_mask(chip)
     water = M.predict_mask(CLF, F, valid)
     return M.main_lake(water), valid, water
@@ -85,13 +85,13 @@ def measure_md(m):
     return (f"| Measurement | Value |\n|---|---|\n"
             f"| Lake area | **{fmt(m['area_ha'])} ha** ({fmt(m['area_ha'] / 100, 2)} km²) |\n"
             f"| Estimated water volume | {fmt(m['volume_million_m3'], 1)} million m³ |\n"
-            f"| Worst-case outburst peak flow | {fmt(m['peak_flow_m3s'], 0)} m³/s |\n"
+            f"| Outburst peak flow, typical / worst case | {fmt(m['peak_flow_typical_m3s'], 0)} / {fmt(m['peak_flow_m3s'], 0)} m³/s |\n"
             f"| Lake length / elongation | {fmt(m['length_m'], 0)} m / {fmt(m['elongation'], 2)} |\n"
             f"| Shoreline complexity | {fmt(m['shoreline_index'], 2)} (1 = perfect circle) |\n"
             f"| Water colour | {m['turbidity']} (red reflectance {fmt(m['water_red'], 3)}) |\n"
             f"| Ice on the lake | {fmt(m['ice_on_lake_pct'], 0)}% |\n"
             f"| Distance to glacier ice | {contact} |\n"
-            f"| Glacier and snow ice in 4 km box | {fmt(m['ice_area_ha'])} ha |\n"
+            f"| Glacier ice in box (bodies 5 ha or bigger) | {fmt(m['ice_area_ha'])} ha |\n"
             f"| Lake elevation | {fmt(m['lake_elev_m'], 0)} m |\n"
             f"| Valley drop below lake | {fmt(m['valley_drop_m'], 0)} m |")
 
@@ -158,7 +158,7 @@ def watch_rows():
 
 
 METRICS = {"Lake area (ha)": "area_ha", "Estimated volume (million m³)": "volume_million_m3",
-           "Worst-case peak flow (m³/s)": "peak_flow_m3s", "Glacier and snow ice in box (ha)": "ice_area_ha",
+           "Typical outburst peak flow (m³/s)": "peak_flow_typical_m3s", "Glacier ice in box (ha)": "ice_area_ha",
            "Distance from lake to glacier (m)": "lake_to_ice_m", "Water muddiness (red reflectance)": "water_red",
            "Ice on lake (%)": "ice_on_lake_pct", "Lake length (m)": "length_m"}
 
@@ -247,7 +247,7 @@ def check_any(lat, lon, season, year_a, year_b):
     if len(got) == 2:
         (y1, a), (y2, b) = got
         rows = [("Lake area (ha)", "area_ha", 1), ("Est. volume (million m³)", "volume_million_m3", 2),
-                ("Worst-case peak flow (m³/s)", "peak_flow_m3s", 0), ("Glacier/snow ice in box (ha)", "ice_area_ha", 1),
+                ("Typical peak flow (m³/s)", "peak_flow_typical_m3s", 0), ("Glacier ice in box (ha)", "ice_area_ha", 1),
                 ("Distance to glacier ice (m)", "lake_to_ice_m", 0), ("Water red reflectance", "water_red", 3)]
         t = [f"| | {y1} | {y2} | Change |", "|---|---|---|---|"]
         for label, k, d in rows:

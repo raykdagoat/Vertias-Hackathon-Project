@@ -5,12 +5,14 @@ from scipy import ndimage
 from .data import SCL_CLOUD
 
 FEATURE_NAMES = ["blue", "green", "red", "nir", "swir16", "swir22",
-                 "ndwi", "mndwi", "ndvi", "brightness", "cliff_gt25deg"]
+                 "ndwi", "mndwi", "ndvi", "brightness", "cliff_gt25deg",
+                 "esa_water_flag", "esa_shadow_flag", "esa_snow_flag"]
+N_BAND_FEATURES = 11  # the first 11 come only from the image bands and slope
 WC_WATER, WC_SNOW = 80, 70
 PIXEL_HA = 0.01  # one 10 m x 10 m pixel = 100 m2 = 0.01 hectares
 
 
-def make_features(bands, slope):
+def make_features(bands, slope, scl=None):
     b, g, r, n, s1, s2 = bands
     eps = 1e-6
     ndwi = (g - n) / (g + n + eps)      # McFeeters NDWI: water is high
@@ -22,7 +24,14 @@ def make_features(bands, slope):
     # "water = the old flat lake outline" and would hide new growth. A cliff flag only
     # rules out steep rock (>25 deg), where a lake can never be, now or later.
     cliff = (np.nan_to_num(slope) > 25).astype("float32")
-    return np.stack([b, g, r, n, s1, s2, ndwi, mndwi, ndvi, bright, cliff]).astype("float32")
+    feats = [b, g, r, n, s1, s2, ndwi, mndwi, ndvi, bright, cliff]
+    # ESA's own scene classification ships with every Sentinel-2 image. Our first real run
+    # showed it is very precise but misses water in shadow, so we let the model use it as
+    # three extra inputs and learn when to trust it.
+    if scl is None:
+        scl = np.zeros_like(b, dtype="uint8")
+    feats += [(scl == 6).astype("float32"), np.isin(scl, [2, 3]).astype("float32"), (scl == 11).astype("float32")]
+    return np.stack(feats).astype("float32")
 
 
 def valid_mask(chip):
@@ -75,9 +84,11 @@ def train_model(X, y, seed=0):
 
 
 def predict_mask(clf, F, mask, threshold=0.5):
+    """Works for both models: the bands-only model just uses the first 11 inputs."""
     out = np.zeros(F.shape[1:], bool)
     if mask.any():
-        out[mask] = clf.predict_proba(to_table(F, mask))[:, 1] >= threshold
+        X = to_table(F[:clf.n_features_in_], mask)
+        out[mask] = clf.predict_proba(X)[:, 1] >= threshold
     return out
 
 

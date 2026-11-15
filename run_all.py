@@ -108,7 +108,7 @@ def main():
         if chip is None:
             print(f"  no training image for {z['id']}"); continue
         label_years[z["id"]] = ly
-        F = M.make_features(chip["bands"], static[z["id"]]["slope"])
+        F = M.make_features(chip["bands"], static[z["id"]]["slope"], chip["scl"])
         valid = M.valid_mask(chip)
         truth = static[z["id"]]["worldcover"] == M.WC_WATER
         X = M.to_table(F, valid); y = truth[valid]
@@ -118,15 +118,17 @@ def main():
         X_parts.append(X[keep]); y_parts.append(y[keep])
     X_train = np.concatenate(X_parts); y_train = np.concatenate(y_parts)
     print(f"Training on {len(y_train):,} pixels ({y_train.mean():.1%} water) from {len(X_parts)} lakes")
-    clf = M.train_model(X_train, y_train, seed=args.seed)
+    clf = M.train_model(X_train, y_train, seed=args.seed)                              # bands + ESA flags
+    clf_bands = M.train_model(X_train[:, :M.N_BAND_FEATURES], y_train, seed=args.seed)  # bands only
     ndwi_t = M.tune_ndwi_threshold(X_train, y_train)
     report["ndwi_threshold"] = ndwi_t
     report["n_train_pixels"] = int(len(y_train))
     import joblib
-    joblib.dump(dict(clf=clf, ndwi_threshold=ndwi_t, features=M.FEATURE_NAMES), os.path.join(out, "model.joblib"))
+    joblib.dump(dict(clf=clf, clf_bands=clf_bands, ndwi_threshold=ndwi_t, features=M.FEATURE_NAMES),
+                os.path.join(out, "model.joblib"))
 
     # ---------------------------------------------------------- 3 + 4. evaluate
-    methods = ["Always land", f"NDWI > {ndwi_t}", "ESA scene class", "Our model"]
+    methods = ["Always land", f"NDWI > {ndwi_t}", "ESA scene class", "Our model, bands only", "Our model"]
     groups = {"train (seen, for reference)": "train", "Himalaya (unseen lakes)": "test_himalaya",
               "Andes (new continent)": "test_andes"}
     conditions = ["normal", "shadow", "snow/ice", "steep (>20 deg)"]
@@ -140,7 +142,7 @@ def main():
         if chip is None:
             continue
         g = [k for k, v in groups.items() if v == z["split"]][0]
-        F = M.make_features(chip["bands"], static[z["id"]]["slope"])
+        F = M.make_features(chip["bands"], static[z["id"]]["slope"], chip["scl"])
         valid = M.valid_mask(chip)
         wc = static[z["id"]]["worldcover"]
         truth = wc == M.WC_WATER
@@ -148,7 +150,8 @@ def main():
             methods[0]: M.baseline_all_land(F),
             methods[1]: M.baseline_ndwi(F, ndwi_t),
             methods[2]: M.baseline_scl(chip),
-            methods[3]: M.predict_mask(clf, F, valid),
+            methods[3]: M.predict_mask(clf_bands, F, valid),
+            methods[4]: M.predict_mask(clf, F, valid),
         }
         shadow = np.isin(chip["scl"], [2, 3])
         snow = (wc == M.WC_SNOW) | (chip["scl"] == 11)
@@ -168,7 +171,7 @@ def main():
         per_zone.append(row)
         if z["split"] != "train":
             viz.save_error_figure(os.path.join(figs, f"errors_{z['id']}.png"), f"{z['name']} ({z['country']}), {chip['date']}",
-                                  chip["bands"], {methods[1]: preds[methods[1]], methods[3]: preds[methods[3]]}, truth, valid)
+                                  chip["bands"], {methods[1]: preds[methods[1]], methods[2]: preds[methods[2]], methods[4]: preds[methods[4]]}, truth, valid)
             idx = np.where(valid.ravel())[0]
             take = rng.choice(idx, size=min(4000, len(idx)), replace=False)
             test_samples.append((M.to_table(F, valid)[np.searchsorted(idx, take)], truth.ravel()[take]))
@@ -199,7 +202,7 @@ def main():
             chip = chips.get((z["id"], y))
             if chip is None:
                 series_rows.append(dict(zone=z["id"], year=y, area_ha="", reliable=False, note="no image")); continue
-            F = M.make_features(chip["bands"], static[z["id"]]["slope"])
+            F = M.make_features(chip["bands"], static[z["id"]]["slope"], chip["scl"])
             valid = M.valid_mask(chip)
             water = M.predict_mask(clf, F, valid)
             lake = M.main_lake(water)
@@ -232,8 +235,8 @@ def main():
         if len(pts) >= 2:
             ya, yb = pts[0][0], pts[-1][0]
             ca, cb = chips[(zid, ya)], chips[(zid, yb)]
-            ma = M.main_lake(M.predict_mask(clf, M.make_features(ca["bands"], static[zid]["slope"]), M.valid_mask(ca)))
-            mb = M.main_lake(M.predict_mask(clf, M.make_features(cb["bands"], static[zid]["slope"]), M.valid_mask(cb)))
+            ma = M.main_lake(M.predict_mask(clf, M.make_features(ca["bands"], static[zid]["slope"], ca["scl"]), M.valid_mask(ca)))
+            mb = M.main_lake(M.predict_mask(clf, M.make_features(cb["bands"], static[zid]["slope"], cb["scl"]), M.valid_mask(cb)))
             viz.save_before_after(os.path.join(figs, f"before_after_{zid}.png"), names[zid], ca, cb, ma, mb)
 
     # ---------------------------------------------------------- 6. save

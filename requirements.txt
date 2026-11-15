@@ -9,3 +9,4 @@ pystac-client>=0.7
 joblib
 gradio>=4
 plotly
+shapely

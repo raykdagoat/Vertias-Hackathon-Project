@@ -10,34 +10,35 @@ split:
 
 months: the season we pull images from. We pick the season when snow cover and
 clouds are lowest, so the lake surface is visible.
-  Himalaya: after the monsoon (Sep to Nov)
+  Himalaya: after the monsoon (Sep to Oct, Nov only as a fallback)
   Peruvian Andes: dry season (Jun to Sep)
 """
 
-HIMALAYA_MONTHS = [9, 10, 11]
+HIMALAYA_MONTHS = [9, 10]        # Nov images had long shadows and fresh snow
+HIMALAYA_FALLBACK = [11]         # only used if Sep-Oct has no usable image
 ANDES_MONTHS = [6, 7, 8, 9]
 
 ZONES = [
     # ---- training zones (Himalaya) ----
     dict(id="imja_tsho", name="Imja Tsho", country="Nepal", lat=27.898, lon=86.925,
-         split="train", months=HIMALAYA_MONTHS, downstream="Dingboche and Khumbu valley villages"),
+         split="train", months=HIMALAYA_MONTHS, fallback_months=HIMALAYA_FALLBACK, downstream="Dingboche and Khumbu valley villages"),
     dict(id="tsho_rolpa", name="Tsho Rolpa", country="Nepal", lat=27.861, lon=86.474,
-         split="train", months=HIMALAYA_MONTHS, downstream="Rolwaling valley and Tamakoshi hydropower"),
+         split="train", months=HIMALAYA_MONTHS, fallback_months=HIMALAYA_FALLBACK, downstream="Rolwaling valley and Tamakoshi hydropower"),
     dict(id="thulagi", name="Thulagi Lake", country="Nepal", lat=28.486, lon=84.484,
-         split="train", months=HIMALAYA_MONTHS, downstream="Marsyangdi river valley"),
+         split="train", months=HIMALAYA_MONTHS, fallback_months=HIMALAYA_FALLBACK, downstream="Marsyangdi river valley"),
     dict(id="lower_barun", name="Lower Barun", country="Nepal", lat=27.797, lon=87.095,
-         split="train", months=HIMALAYA_MONTHS, downstream="Arun river valley"),
+         split="train", months=HIMALAYA_MONTHS, fallback_months=HIMALAYA_FALLBACK, downstream="Arun river valley"),
     dict(id="longbasaba", name="Longbasaba", country="China (Tibet)", lat=27.953, lon=88.079,
-         split="train", months=HIMALAYA_MONTHS, downstream="Pumqu / Arun river"),
+         split="train", months=HIMALAYA_MONTHS, fallback_months=HIMALAYA_FALLBACK, downstream="Pumqu / Arun river"),
     dict(id="lugge_tsho", name="Lugge Tsho", country="Bhutan", lat=28.094, lon=90.298,
-         split="train", months=HIMALAYA_MONTHS, downstream="Punatsangchhu river (1994 flood)"),
+         split="train", months=HIMALAYA_MONTHS, fallback_months=HIMALAYA_FALLBACK, downstream="Punatsangchhu river (1994 flood)"),
     # ---- held-out test zones, same range ----
     dict(id="south_lhonak", name="South Lhonak Lake", country="India (Sikkim)", lat=27.912, lon=88.197,
-         split="test_himalaya", months=HIMALAYA_MONTHS, downstream="Teesta river (burst in Oct 2023)"),
+         split="test_himalaya", months=HIMALAYA_MONTHS, fallback_months=HIMALAYA_FALLBACK, downstream="Teesta river (burst in Oct 2023)"),
     dict(id="raphstreng", name="Raphstreng Tsho", country="Bhutan", lat=28.107, lon=90.245,
-         split="test_himalaya", months=HIMALAYA_MONTHS, downstream="Punatsangchhu river"),
-    dict(id="gepang_gath", name="Gepang Gath", country="India (Himachal)", lat=32.494, lon=77.224,
-         split="test_himalaya", months=HIMALAYA_MONTHS, downstream="Chandra river, Sissu"),
+         split="test_himalaya", months=HIMALAYA_MONTHS, fallback_months=HIMALAYA_FALLBACK, downstream="Punatsangchhu river"),
+    dict(id="gepang_gath", name="Gepang Gath", country="India (Himachal)", lat=32.517, lon=77.217, size_m=6000,
+         split="test_himalaya", months=HIMALAYA_MONTHS, fallback_months=HIMALAYA_FALLBACK, downstream="Chandra river, Sissu"),
     # ---- held-out test zones, new continent ----
     dict(id="palcacocha", name="Laguna Palcacocha", country="Peru", lat=-9.398, lon=-77.380,
          split="test_andes", months=ANDES_MONTHS, downstream="Huaraz city (1941 flood)"),

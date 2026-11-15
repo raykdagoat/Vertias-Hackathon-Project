@@ -80,7 +80,7 @@ def save_before_after(path, title, chip_a, chip_b, mask_a, mask_b):
 def save_multi_metric(path, measurements, names):
     """Four indicators over time for every lake."""
     panels = [("area_ha", "Lake area (ha)"), ("volume_million_m3", "Est. volume (million m3)"),
-              ("ice_area_ha", "Glacier/snow ice in 4 km box (ha)"), ("water_red", "Water muddiness (red reflectance)")]
+              ("ice_area_ha", "Glacier ice in box (ha)"), ("water_red", "Water muddiness (red reflectance)")]
     fig, axes = plt.subplots(2, 2, figsize=(11, 7))
     for ax, (key, title) in zip(axes.ravel(), panels):
         for zid, rows in measurements.items():

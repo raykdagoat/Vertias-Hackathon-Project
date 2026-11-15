@@ -32,7 +32,7 @@ def write_results_md(out, r, methods):
                          f"{s['f1']:.3f} | {s['iou']:.3f} | {s['missed_water_ha']:.1f} | {s['false_water_ha']:.1f} |")
         L.append("")
         if "Our model" in tbl and len(tbl) > 1:
-            best_base = max((m for m in tbl if m != "Our model"), key=lambda m: tbl[m]["f1"])
+            best_base = max((m for m in tbl if not m.startswith("Our model")), key=lambda m: tbl[m]["f1"])
             d = tbl["Our model"]["f1"] - tbl[best_base]["f1"]
             verdict = "beats" if d > 0.005 else ("ties with" if abs(d) <= 0.005 else "does NOT beat")
             L += [f"Takeaway: our model {verdict} the best baseline ({best_base}) here, F1 change {d:+.3f}.", ""]
@@ -53,16 +53,17 @@ def write_results_md(out, r, methods):
         L.append("")
     # worst zone
     tz = [z for z in r["per_zone"] if z["split"] != "train" and "Our model" in z]
+    scored = [z for z in tz if z["water_ha_label"] >= 5] or tz
     if tz:
-        worst = min(tz, key=lambda z: z["Our model"]["f1"])
-        best = max(tz, key=lambda z: z["Our model"]["f1"])
-        L += ["### Per lake (unseen lakes)", "", "| Lake | Split | Image date | Label water (ha) | Model F1 | NDWI F1 | Missed (ha) | False (ha) |",
-              "|---|---|---|---|---|---|---|---|"]
+        worst = min(scored, key=lambda z: z["Our model"]["f1"])
+        best = max(scored, key=lambda z: z["Our model"]["f1"])
+        L += ["### Per lake (unseen lakes)", "", "| Lake | Split | Image date | Label water (ha) | Model F1 | Bands-only F1 | ESA F1 | NDWI F1 | Missed (ha) | False (ha) |",
+              "|---|---|---|---|---|---|---|---|---|---|"]
         nd = [m for m in methods if m.startswith("NDWI")][0]
         for z in tz:
             s = z["Our model"]
             L.append(f"| {z['name']} | {z['split']} | {z['image_date']} | {z['water_ha_label']:.1f} | {s['f1']:.3f} | "
-                     f"{z[nd]['f1']:.3f} | {s['missed_water_ha']:.1f} | {s['false_water_ha']:.1f} |")
+                     f"{z['Our model, bands only']['f1']:.3f} | {z['ESA scene class']['f1']:.3f} | {z[nd]['f1']:.3f} | {s['missed_water_ha']:.1f} | {s['false_water_ha']:.1f} |")
         L += ["", f"Worst unseen lake for our model: **{worst['name']}** (F1 {worst['Our model']['f1']:.3f}). "
               f"See `figures/errors_{worst['zone']}.png`. Best: {best['name']} (F1 {best['Our model']['f1']:.3f}).", "",
               f"![worst case](figures/errors_{worst['zone']}.png)", ""]
@@ -109,13 +110,14 @@ def write_results_md(out, r, methods):
         L += ["## 5. Lake report card: one image, many uses", "",
               "From each lake outline we also measure shape, water colour, ice, distance to the glacier, terrain, "
               "and estimated volume and flood peak. Values are for the latest clear year. "
-              "Volume and peak flow use rough published formulas (Huggel et al. 2002) and can be off by 2x or more.", "",
+              "Volume uses Huggel et al. (2002). Peak flow shows a typical value (Clague and Mathews 1973) and a worst case "
+              "(Huggel et al. 2002). These are rough and can be off by 2x or more. Glacier = a connected ice body of at least 5 ha.", "",
               "### Outburst flood screening", "",
-              "| Rank | Lake | Tier | Score | Volume (million m3) | Worst-case peak flow (m3/s) | Growth (%/yr) | Valley drop below lake (m) | Distance to glacier ice (m) | Flags |",
+              "| Rank | Lake | Tier | Score | Volume (million m3) | Peak flow, typical / worst case (m3/s) | Growth (%/yr) | Valley drop below lake (m) | Distance to glacier ice (m) | Flags |",
               "|---|---|---|---|---|---|---|---|---|---|"]
         for c in cards:
             L.append(f"| {c['flood_rank']} | {c['name']} | {c['flood_tier']} | {c['flood_score']} | {f_(c['volume_million_m3'], 2)} | "
-                     f"{f_(c['peak_flow_m3s'], 0)} | {c['growth_pct_per_year']:+.1f} | {f_(c['valley_drop_m'], 0)} | "
+                     f"{f_(c['peak_flow_typical_m3s'], 0)} / {f_(c['peak_flow_m3s'], 0)} | {c['growth_pct_per_year']:+.1f} | {f_(c['valley_drop_m'], 0)} | "
                      f"{f_(c['lake_to_ice_m'], 0)} | {c['flags']} |")
         L += ["", SCORE_NOTE, "",
               "### Drought and water supply", "",
@@ -127,7 +129,7 @@ def write_results_md(out, r, methods):
             L.append(f"| {c['name']} | {f_(c['area_median_ha'])} | {f_(c['area_ha'])} | {c['volume_change_million_m3']:+.2f} | "
                      f"{c['dry_years'] or 'none'} | {c['water_supply_concern']} |")
         L += ["", "### Glacier retreat and water quality", "",
-              "| Lake | Ice in 4 km box (ha) | Ice change (ha/yr) | Water colour | Red reflectance | Ice on lake (%) | Lake length (m) | Elongation | Lake elevation (m) |",
+              "| Lake | Glacier ice in box (ha) | Ice change (ha/yr) | Water colour | Red reflectance | Ice on lake (%) | Lake length (m) | Elongation | Lake elevation (m) |",
               "|---|---|---|---|---|---|---|---|---|"]
         for c in cards:
             L.append(f"| {c['name']} | {f_(c['ice_area_ha'])} | {f_(c['ice_change_ha_per_year'], 2)} | {c['turbidity']} | "
