@@ -1,7 +1,7 @@
 # Glacier Lake Watch
 
 **Track:** Climate (Veritas AI International High School Hackathon 2026)  
-**Team:** _your name(s)_
+**Team:** Arsh Kudariya and Raymond Kusamanegara
 
 An AI tool that finds glacial lakes in free satellite images, measures a dozen things about each lake every year, and builds a report card for several uses: outburst flood risk, drought and water supply, lakes that already drained, glacier retreat, and water quality. A regional hazard team can use the ranking to decide which lakes to check first.
 
@@ -196,4 +196,4 @@ hf_space/          settings file for Hugging Face Spaces
 
 ## Team
 
-_Add names here._ All listed members contributed during the hackathon weekend (Nov 14 to 15, 2026).
+Arsh Kudariya and Raymond Kusamanegara. All listed members contributed during the hackathon weekend (Nov 14 to 15, 2026).
